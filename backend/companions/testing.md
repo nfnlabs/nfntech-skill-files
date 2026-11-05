@@ -97,6 +97,23 @@ expect(user).toEqual({ id: 1, name: 'Alice', email: 'a@x.com', createdAt: '...',
 expect(user).toEqual(expect.objectContaining({ id: 1, name: 'Alice', email: 'a@x.com' }));
 ```
 
+### Security and money paths
+
+Unit tests with mocks are not enough where the risk is who-can-do-what or how-many-times.
+These need integration tests through the HTTP layer against a real database:
+
+- **Every security fix gets a regression test** that fails on the old code — a forged token
+  is rejected, a cross-tenant request returns 404, a replayed webhook credits once.
+- **An authorization matrix for each protected resource:** owner ✓, other user in the same
+  tenant ✗, user in another tenant ✗, wrong token kind ✗, no token ✗. IDOR bugs live in the
+  rows nobody wrote.
+- **Concurrency on shared values:** fire N parallel requests at a balance of 1 and assert
+  exactly one succeeds and the balance ends at 0 (→ `data-layer.md`).
+- **Idempotency:** deliver the same webhook or confirmation twice; assert one effect.
+- **Outbound URL checks:** private, loopback and metadata addresses are refused.
+
+Asserting the SQL string of an atomic update with a regex proves the text, not the behavior.
+
 ## 5 · Fixture factories
 
 ```js
@@ -137,6 +154,8 @@ Strip generated/vendor files from coverage or the number is meaningless.
 ## 8 · Done when
 
 - New behavior has a test that fails before the fix and passes after
+- Auth, tenant scoping, payments and credits have integration tests on a real database,
+  including an authorization matrix and a concurrency test
 - Coverage on the changed critical path meets the target above
 - Happy path plus at least two unhappy paths covered per new function/endpoint
 - No test hits a real network, DB, or depends on another test's side effects

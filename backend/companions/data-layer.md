@@ -96,6 +96,33 @@ const orders = await Order.findAll({ include: [{ model: Customer }] });
 - Never build queries by string-formatting values into SQL, even for "trusted" internal
   values — always use bound/parameterized queries.
 - Use connection pooling; never open a new raw connection per request.
+- Verify TLS to the database in every deployed environment: `ssl: { rejectUnauthorized: true,
+  ca: <provider CA bundle> }`. `rejectUnauthorized: false` encrypts the connection but accepts
+  any certificate, so it doesn't stop a man-in-the-middle.
+
+### Concurrency on shared values
+
+Any value two requests can change at once — a balance, a credit count, stock, a seat limit,
+a status — needs the database to arbitrate, not application code.
+
+- **No check-then-act.** Reading a value, deciding in code, then writing it back lets two
+  requests both pass the check. Put the condition in the write:
+  `UPDATE balances SET credits = credits - 1 WHERE user_id = $1 AND credits > 0 RETURNING credits`
+  and treat "no row returned" as "not enough".
+- **Relative updates, not absolute ones.** `SET balance = balance + $n`, never
+  `SET balance = <value read earlier> + $n`, which silently overwrites a concurrent change.
+- **Row locks only inside the transaction that uses them.** `SELECT … FOR UPDATE` protects
+  nothing once its transaction commits; if the decision and the write are minutes apart
+  (a slow external call in between), reserve first with a conditional update and refund on
+  failure.
+- **Uniqueness belongs to the database.** "Only one X per Y" (one subscription per user, one
+  credit per payment, one row per event ID) is a unique constraint; an application check
+  before insert races.
+- **Ledger and balance move together** — the balance change and its audit/ledger row are
+  written in the same transaction, or a crash between them leaves them disagreeing forever.
+
+Test these against a real database with parallel requests (→ `testing.md`); a mocked
+repository can't show a race.
 
 ## 5 · Failure modes
 
@@ -108,6 +135,9 @@ const orders = await Order.findAll({ include: [{ model: Customer }] });
 | Columns silently dropped after a deploy | ORM auto-sync used against a real environment | versioned migrations only |
 | A migration can't be reverted | shipped without a `down` | always write both directions |
 | Duplicate/invalid data slips in | invariant enforced only in application code | add a DB-level constraint |
+| Balance goes negative / one credit spent twice | check-then-act, or lock released before the write | conditional `UPDATE … WHERE … RETURNING` |
+| A concurrent change disappears | absolute write of a value read earlier | relative update (`col = col + $n`) |
+| Ledger total doesn't match balance | ledger row written outside the balance transaction | same transaction |
 
 ## 6 · Done when
 
@@ -115,4 +145,7 @@ const orders = await Order.findAll({ include: [{ model: Customer }] });
 - New/changed foreign keys have both a constraint and an index
 - No query loops per item where a join/eager-load would do
 - Multi-step writes are transactional
+- Shared counters change only through conditional or relative updates; uniqueness rules are
+  DB constraints
+- Database TLS verifies the server certificate
 - No raw string interpolation into a query

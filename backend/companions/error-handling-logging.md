@@ -71,7 +71,10 @@ const isOnline = device.online === true;      if (!device) { logger.warn(`No dat
 - Include a correlation/request ID on every log line for a request, and propagate it through
   downstream service calls.
 - Log operation, relevant IDs, duration, and outcome — never raw PII, passwords, tokens, or
-  full credit card numbers. Redact before logging.
+  full credit card numbers. Redact before logging. That includes things that act like secrets:
+  pre-signed storage URLs, any prefix of an access token, webhook signatures, full request
+  headers, and full webhook or provider payloads. Log the object key, the token's ID, the
+  event ID.
 - No leftover `console.log`/`print` debugging in committed code — one log line per meaningful
   event.
 
