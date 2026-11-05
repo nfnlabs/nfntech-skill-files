@@ -25,6 +25,15 @@ lens on all of them.
 - [ ] Existing helpers reused instead of duplicated
 - [ ] Tests cover happy path **and** unhappy paths, ≥80% on critical paths
 - [ ] No obvious race conditions or concurrency issues
+- [ ] Third-party identity tokens verified, not decoded; tenant/user taken only from the credential
+- [ ] Every query on a tenant's data scopes by tenant and owner
+- [ ] Money and credits: amounts and plans from the provider, not the client; each payment
+      applied once; balances changed by conditional/relative updates (→ `payments-billing.md`)
+- [ ] Webhooks: raw-body signature, constant-time compare, event-ID dedupe
+- [ ] Server-side fetches of user-supplied URLs are allow-listed or IP-checked
+- [ ] No auth bypass reachable in a deployed environment
+- [ ] Model calls: safety settings on, inputs and outputs moderated, per-user limits (→ `ai-features.md`)
+- [ ] Deleting a record deletes its stored files
 - [ ] Diff is minimal and scoped to the request
 
 ## 2 · What to look for, by area
@@ -57,7 +66,10 @@ nothing — it should carry the relevant ID and the underlying cause.
 
 ## 4 · When to request changes
 
-- Security issue: hardcoded secret, missing auth check, injection risk
+- Security issue: hardcoded secret, missing auth check, injection risk, unverified identity
+  token, tenant taken from the request, SSRF, auth bypass flag
+- Money issue: a payment or credit that can apply twice, a plan or amount trusted from the
+  client, a check-then-act on a balance
 - Logic error: wrong calculation, race condition, null dereference
 - Test coverage missing for a critical path
 - Performance issue: N+1 query, unbounded load, missing index
@@ -71,13 +83,22 @@ nothing — it should carry the relevant ID and the underlying cause.
 - A nice-to-have optimization that isn't critical
 - A clarifying comment would help, but the code is correct as written
 
-## 6 · Tone
+## 6 · Reviewing a whole codebase
+
+A full review (not a diff) starts by confirming **which branch is deployed** and comparing it
+with the default branch — reviewing a branch nobody runs wastes the review. Record the commit
+reviewed. Then read in risk order: authentication and tenant scoping, money paths, webhooks,
+outbound requests, file storage and personal data, then the rest. Give each finding an ID,
+a severity, the branches it applies to, `file:line` evidence and a fix, so it can be tracked
+and re-checked.
+
+## 7 · Tone
 
 Be respectful and assume good intent. Explain *why* a change is needed, not just *what* to
 change. Offer suggestions, not demands. Call out good patterns, not only problems. Keep
 feedback focused and actionable — a long list of nits buries the one blocking issue.
 
-## 7 · Done when
+## 8 · Done when
 
 - Every checklist item in §1 has been checked against the diff, not assumed
 - Every request-changes comment names the specific risk (security, correctness, coverage,
