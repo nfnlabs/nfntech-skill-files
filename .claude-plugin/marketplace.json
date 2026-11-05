@@ -19,7 +19,7 @@
       "version": "0.1.0",
       "description": "Backend engineering standards (Node/Express, Python, Rails): architecture, data layer, security, testing, review.",
       "category": "engineering",
-      "dependencies": ["nfn-core"]
+      "dependencies": ["nfn-core@nfntech"]
     },
     {
       "name": "nfn-react",
@@ -27,7 +27,7 @@
       "version": "0.1.0",
       "description": "React, Next.js and TypeScript: build, review, performance and debugging.",
       "category": "engineering",
-      "dependencies": ["nfn-core"]
+      "dependencies": ["nfn-core@nfntech"]
     },
     {
       "name": "nfn-flutter",
@@ -35,7 +35,7 @@
       "version": "0.1.0",
       "description": "Flutter and Dart engineering standards, from bootstrap to store release.",
       "category": "engineering",
-      "dependencies": ["nfn-core"]
+      "dependencies": ["nfn-core@nfntech"]
     },
     {
       "name": "nfn-webflow",
@@ -43,7 +43,7 @@
       "version": "0.1.0",
       "description": "Webflow work: importing Word documents into Webflow CMS (needs the Webflow connector). Webflow standards to follow.",
       "category": "engineering",
-      "dependencies": ["nfn-core"]
+      "dependencies": ["nfn-core@nfntech"]
     }
   ]
 }
