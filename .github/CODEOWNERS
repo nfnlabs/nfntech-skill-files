@@ -1,0 +1,9 @@
+# PROTOTYPE: team handles below are placeholders. Create the teams (or use usernames) before
+# turning on "Require review from Code Owners" in branch protection.
+*                         @nfnlabs/tech-leads
+/.claude-plugin/          @nfnlabs/tech-leads
+/plugins/nfn-core/        @nfnlabs/tech-leads
+/backend/                 @nfnlabs/backend-lead
+/frontend/reactjs/        @nfnlabs/frontend-lead
+/frontend/webflow/        @nfnlabs/webflow-lead
+/mobile/flutter/          @nfnlabs/mobile-lead

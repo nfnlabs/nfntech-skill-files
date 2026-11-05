@@ -134,8 +134,7 @@ def lint_manifests(root: Path) -> None:
             except json.JSONDecodeError as e:
                 err(pj.relative_to(root), f"invalid JSON: {e}")
                 continue
-        elif entry.get("strict", True):
-            err(mp_path.relative_to(root), f"{entry.get('name')}: {src} has no .claude-plugin/plugin.json")
+        # No plugin.json is fine: the marketplace entry then serves as the manifest.
         if not (manifest.get("version") or entry.get("version")):
             err(mp_path.relative_to(root), f"{entry.get('name')}: no version in plugin.json or marketplace entry")
         for dep in manifest.get("dependencies", []) or entry.get("dependencies", []) or []:

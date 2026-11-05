@@ -1,0 +1,9 @@
+{
+  "name": "nfn-core",
+  "displayName": "NFN core",
+  "version": "0.1.0",
+  "description": "NFN Labs shared engineering baseline and code-review skill. Placeholders in this prototype.",
+  "author": { "name": "NFN Labs engineering" },
+  "repository": "https://github.com/nfnlabs/nfntech-skill-files",
+  "license": "UNLICENSED"
+}
