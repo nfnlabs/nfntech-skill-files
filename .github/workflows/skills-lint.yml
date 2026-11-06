@@ -1,0 +1,38 @@
+# Prototype for discussion. Lints skill frontmatter, description length, file references
+# and plugin manifests on every PR. Runs in --report-only mode until the repo is migrated
+# to the plugin layout; then drop the flag so errors block merges.
+name: skills-lint
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install pyyaml==6.0.2
+      - name: Lint skills and manifests
+        run: python3 scripts/lint_skills.py --report-only
+      - name: Check every listed plugin's version moved when its files changed
+        if: github.event_name == 'pull_request'
+        run: |
+          git fetch --depth=1 origin "${{ github.base_ref }}"
+          for pj in $(git ls-files 'plugins/*/.claude-plugin/plugin.json'); do
+            dir="${pj%/.claude-plugin/plugin.json}"
+            if ! git diff --quiet "origin/${{ github.base_ref }}" -- "$dir"; then
+              old=$(git show "origin/${{ github.base_ref }}:$pj" 2>/dev/null | python3 -c 'import json,sys;print(json.load(sys.stdin).get("version",""))' || true)
+              new=$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1])).get("version",""))' "$pj")
+              if [ -n "$old" ] && [ "$old" = "$new" ]; then
+                echo "::warning file=$pj::$dir changed but version is still $new; bump it and add a CHANGELOG line"
+              fi
+            fi
+          done

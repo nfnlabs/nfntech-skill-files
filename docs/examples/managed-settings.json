@@ -1,0 +1,11 @@
+{
+  "extraKnownMarketplaces": {
+    "nfntech": {
+      "source": { "source": "github", "repo": "nfnlabs/nfntech-skill-files" },
+      "autoUpdate": true
+    }
+  },
+  "enabledPlugins": {
+    "nfn-core@nfntech": true
+  }
+}

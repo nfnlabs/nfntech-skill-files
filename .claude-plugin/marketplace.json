@@ -1,0 +1,72 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "nfntech",
+  "owner": {
+    "name": "NFN Labs engineering",
+    "email": "james@nfnlabs.in"
+  },
+  "metadata": {
+    "description": "NFN Labs team engineering skills. PROTOTYPE FOR DISCUSSION: team plugins point at the existing folders; nothing has been moved yet.",
+    "version": "0.1.0"
+  },
+  "plugins": [
+    {
+      "name": "nfn-core",
+      "source": "./plugins/nfn-core",
+      "description": "Shared engineering baseline and code review. Installed by everyone; every team plugin depends on it.",
+      "category": "engineering"
+    },
+    {
+      "name": "nfn-backend",
+      "source": "./backend",
+      "version": "0.1.0",
+      "description": "Backend engineering standards (Node/Express, Python, Rails): architecture, data layer, security, testing, review.",
+      "category": "engineering",
+      "dependencies": [
+        "nfn-core@nfntech"
+      ]
+    },
+    {
+      "name": "nfn-react",
+      "source": "./frontend/reactjs",
+      "version": "0.1.0",
+      "description": "React, Next.js and TypeScript: build, review, performance and debugging.",
+      "category": "engineering",
+      "dependencies": [
+        "nfn-core@nfntech"
+      ]
+    },
+    {
+      "name": "nfn-flutter",
+      "source": "./mobile/flutter/flutter-engineering",
+      "version": "0.1.0",
+      "description": "Flutter and Dart engineering standards, from bootstrap to store release.",
+      "category": "engineering",
+      "dependencies": [
+        "nfn-core@nfntech"
+      ]
+    },
+    {
+      "name": "nfn-webflow",
+      "source": "./frontend/webflow",
+      "version": "0.1.0",
+      "description": "Webflow work: importing Word documents into Webflow CMS (needs the Webflow connector). Webflow standards to follow.",
+      "category": "engineering",
+      "dependencies": [
+        "nfn-core@nfntech"
+      ]
+    },
+    {
+      "name": "cf-security-audit",
+      "source": {
+        "source": "github",
+        "repo": "cloudflare/security-audit-skill",
+        "sha": "c1c8a8c1471069fb0e188eeaff69b8e8db6564a8"
+      },
+      "description": "External: Cloudflare's security-audit skill (MIT), pinned to a reviewed commit. Opt-in for full codebase security audits.",
+      "category": "security",
+      "license": "MIT",
+      "homepage": "https://github.com/cloudflare/security-audit-skill"
+    }
+  ]
+}
