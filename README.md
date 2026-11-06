@@ -15,6 +15,7 @@ Team engineering skills for Claude, published as a Claude Code plugin marketplac
 | `nfn-react` | React / Next.js engineers | `frontend` (to be renamed `react-engineering`) |
 | `nfn-flutter` | Flutter engineers | `flutter-engineering` |
 | `nfn-webflow` | Webflow team | `docx-to-webflow-cms` (its scripts are missing; see the review) |
+| `cf-security-audit` | Anyone running a full security audit (opt-in) | `security-audit`, from [cloudflare/security-audit-skill](https://github.com/cloudflare/security-audit-skill) (MIT), pinned to a reviewed commit |
 
 ## Install (Claude Code)
 
@@ -32,6 +33,13 @@ Without that, run `/plugin marketplace update nfntech`.
 1. Open a PR that names the incident or review finding behind the change.
 2. Bump `version` for the plugin you changed and add a line to `CHANGELOG.md`.
 3. The plugin's code owner approves. CI runs `scripts/lint_skills.py` and `claude plugin validate`.
+
+## External skills
+
+External skills are listed in `marketplace.json` with a `github` source pinned by full commit `sha`,
+never copied into this repo. Each Monday `.github/workflows/external-skills.yml` checks upstream and
+opens a draft PR that moves the pin. A code owner reads the upstream diff before merging; nothing
+reaches anyone until then.
 
 ## Conventions
 

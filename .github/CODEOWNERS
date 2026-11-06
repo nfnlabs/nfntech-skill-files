@@ -7,3 +7,4 @@
 /frontend/reactjs/        @nfnlabs/frontend-lead
 /frontend/webflow/        @nfnlabs/webflow-lead
 /mobile/flutter/          @nfnlabs/mobile-lead
+/scripts/check_external_skills.py  @nfnlabs/tech-leads

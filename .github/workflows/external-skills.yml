@@ -1,0 +1,41 @@
+# Prototype for discussion. Once a week, checks every external plugin pinned by `sha` in
+# .claude-plugin/marketplace.json and, if upstream has moved, opens (or refreshes) one PR that
+# bumps the pins. Nothing reaches anyone until a code owner reviews the upstream diff and merges.
+# Requires the org/repo setting "Allow GitHub Actions to create and approve pull requests".
+name: external-skills
+
+on:
+  schedule:
+    - cron: "17 4 * * 1"   # Mondays 04:17 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check upstream heads and bump pins
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/check_external_skills.py --update --summary "$RUNNER_TEMP/summary.md"
+      - name: Open or update the bump PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if git diff --quiet; then echo "All external skills are up to date."; exit 0; fi
+          branch=bot/external-skills-bump
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -B "$branch"
+          git commit -am "external skills: bump pinned upstream commits"
+          git push --force-with-lease origin "$branch"
+          body="$(printf 'Upstream changes to review before merging:\n\n%s\n\nCheck each compare link: read every changed instruction and script, look for new network calls or shell commands, and run the plugin evals before approving.\n' "$(cat "$RUNNER_TEMP/summary.md")")"
+          if gh pr view "$branch" >/dev/null 2>&1; then
+            gh pr edit "$branch" --body "$body"
+          else
+            gh pr create --draft --head "$branch" --title "External skills: upstream updates to review" --body "$body"
+          fi
