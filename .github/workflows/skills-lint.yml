@@ -22,6 +22,8 @@ jobs:
       - run: pip install pyyaml==6.0.2
       - name: Lint skills and manifests
         run: python3 scripts/lint_skills.py --report-only
+      - name: External mirrors are unmodified and own their topic
+        run: python3 scripts/external_skills.py verify
       - name: Check every listed plugin's version moved when its files changed
         if: github.event_name == 'pull_request'
         run: |

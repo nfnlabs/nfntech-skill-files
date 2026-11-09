@@ -15,7 +15,7 @@ Team engineering skills for Claude, published as a Claude Code plugin marketplac
 | `nfn-react` | React / Next.js engineers | `frontend` (to be renamed `react-engineering`) |
 | `nfn-flutter` | Flutter engineers | `flutter-engineering` |
 | `nfn-webflow` | Webflow team | `docx-to-webflow-cms` (its scripts are missing; see the review) |
-| `cf-security-audit` | Anyone running a full security audit (opt-in) | `security-audit`, from [cloudflare/security-audit-skill](https://github.com/cloudflare/security-audit-skill) (MIT), pinned to a reviewed commit |
+| `ext-cf-security-audit` | Anyone running a full security audit (opt-in) | `security-audit`: an unmodified mirror of [cloudflare/security-audit-skill](https://github.com/cloudflare/security-audit-skill) (MIT) |
 
 ## Install (Claude Code)
 
@@ -36,10 +36,9 @@ Without that, run `/plugin marketplace update nfntech`.
 
 ## External skills
 
-External skills are listed in `marketplace.json` with a `github` source pinned by full commit `sha`,
-never copied into this repo. Each Monday `.github/workflows/external-skills.yml` checks upstream and
-opens a draft PR that moves the pin. A code owner reads the upstream diff before merging; nothing
-reaches anyone until then.
+See [`external/README.md`](external/README.md). Each one is mirrored unmodified, absorbed into our own
+skills, or rejected, and `external/registry.json` records the decision. To propose one, ask Claude
+Code in this repo: *"evaluate this skill for adoption: <url>"*.
 
 ## Conventions
 

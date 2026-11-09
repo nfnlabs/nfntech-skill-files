@@ -1,0 +1,29 @@
+{
+  "$comment": "Every external skill NFN has considered, and who owns each topic. Edit by PR; see external/README.md.",
+  "topics": {
+    "engineering-baseline": "nfn-core",
+    "code-review": "nfn-core",
+    "backend": "nfn-backend",
+    "react-nextjs": "nfn-react",
+    "flutter": "nfn-flutter",
+    "webflow": "nfn-webflow",
+    "security-audit": "ext-cf-security-audit"
+  },
+  "sources": [
+    {
+      "id": "cf-security-audit",
+      "repo": "https://github.com/cloudflare/security-audit-skill",
+      "path": "skills/security-audit",
+      "branch": "main",
+      "license": "MIT",
+      "topic": "security-audit",
+      "status": "mirrored",
+      "plugin": "ext-cf-security-audit",
+      "sha": "c1c8a8c1471069fb0e188eeaff69b8e8db6564a8",
+      "owner": "@nfnlabs/tech-leads",
+      "decided": "2026-11-09",
+      "why": "Full multi-agent security-audit workflow maintained by Cloudflare's security team. NFN owns no audit skill, and rewriting it would cost more than reviewing upstream diffs.",
+      "notes": "Opt-in (Available to install). Its description also claims security questions and focused reviews, which overlap backend-engineering's security companion; keep it off by default."
+    }
+  ]
+}

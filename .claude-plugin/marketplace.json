@@ -57,16 +57,10 @@
       ]
     },
     {
-      "name": "cf-security-audit",
-      "source": {
-        "source": "github",
-        "repo": "cloudflare/security-audit-skill",
-        "sha": "c1c8a8c1471069fb0e188eeaff69b8e8db6564a8"
-      },
-      "description": "External: Cloudflare's security-audit skill (MIT), pinned to a reviewed commit. Opt-in for full codebase security audits.",
-      "category": "security",
-      "license": "MIT",
-      "homepage": "https://github.com/cloudflare/security-audit-skill"
+      "name": "ext-cf-security-audit",
+      "source": "./plugins/ext-cf-security-audit",
+      "description": "External, unmodified mirror of cloudflare/security-audit-skill (MIT). Opt-in, for full codebase security audits.",
+      "category": "security"
     }
   ]
 }

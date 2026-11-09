@@ -58,8 +58,14 @@ def frontmatter(text: str):
 
 def walk(root: Path, pattern: str):
     for p in sorted(root.rglob(pattern)):
-        if not any(part in SKIP_DIRS for part in p.relative_to(root).parts):
-            yield p
+        parts = p.relative_to(root).parts
+        if any(part in SKIP_DIRS for part in parts):
+            continue
+        # External mirrors (plugins/ext-*) are upstream's files, checked by
+        # `scripts/external_skills.py verify` instead of our house rules.
+        if len(parts) > 1 and parts[0] == "plugins" and parts[1].startswith("ext-"):
+            continue
+        yield p
 
 
 def lint_skill(skill_md: Path, root: Path) -> None:
@@ -103,7 +109,9 @@ def lint_skill(skill_md: Path, root: Path) -> None:
             warn(md.relative_to(root), "companion file has frontmatter; drop it (only SKILL.md is a skill)")
         for ref in sorted(set(REF_RE.findall(body))):
             target = skill_root / ref.rstrip("/")
-            if not target.exists():
+            # Repo-local skills (.claude/skills/*) aren't packaged, so they may reference repo files.
+            repo_local = rel.parts[:2] == (".claude", "skills")
+            if not target.exists() and not (repo_local and (root / ref.rstrip("/")).exists()):
                 err(md.relative_to(root), f"references {ref}, which does not exist in {skill_root.relative_to(root)}/")
 
 

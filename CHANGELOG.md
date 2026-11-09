@@ -4,6 +4,11 @@ One section per plugin release, newest first. Headings are `## <plugin> <version
 Under each, use the groups Added, Changed, Removed and Fixed. Every line links its PR and, where
 there is one, the review finding that motivated it (for example `TR-06`).
 
+## ext-cf-security-audit 2026.09.14-c1c8a8c — prototype
+
+### Added
+- Unmodified mirror of cloudflare/security-audit-skill at `c1c8a8c` (MIT). Opt-in.
+
 ## nfn-core 0.1.0 — prototype
 
 ### Added
