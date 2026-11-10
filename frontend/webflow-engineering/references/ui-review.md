@@ -44,6 +44,7 @@ that came from the rich-text field:
   field.
 - No doubled or missing space around bold and linked phrases — read a couple of
   sentences that contain inline formatting, since this is where Word damage shows.
+- Images have the alt text that came from the document (or are intentionally empty).
 - Links resolve and are absolute.
 - Any table is legible, not a column of unstyled text.
 

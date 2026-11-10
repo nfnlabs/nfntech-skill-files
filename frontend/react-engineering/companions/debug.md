@@ -37,6 +37,9 @@ reproducible observation — what was expected, what appeared.
 Most React bugs are one of a small set. Check these before theorising.
 
 **"Hydration failed" / "Text content did not match"**
+*(Message wording is version-dependent — React 19 and recent Next.js show
+a diff of the mismatch; older majors use the phrases above. Match on the
+symptom, not the exact text.)*
 Server HTML differs from the first client render. Usual causes:
 `Date.now()`, `toLocaleString()`, `Math.random()`, `localStorage`/`window`
 read during render, `typeof window !== 'undefined'` branching in JSX,
@@ -68,8 +71,35 @@ cleanup, or a data library that handles it.
 Array index used as `key`. Use a stable id.
 
 **"window is not defined" / "document is not defined"**
-Browser API touched during SSR. Move it into an effect, or
-`next/dynamic` with `ssr: false` for that component specifically.
+Browser API touched during SSR. Move it into an effect or event handler
+first. If a whole component genuinely can't render on the server, load it
+with `next/dynamic` and `ssr: false` — **but in the App Router that option
+is only allowed inside a Client Component** (calling it from a Server
+Component errors in recent Next.js majors; version-dependent, check the
+installed one). Put the `dynamic()` call in a small `'use client'` wrapper.
+
+**"`params` / `searchParams` / `cookies()` should be awaited"**
+*(Version-dependent: Next.js 15 and later make these request APIs async.)*
+Await them in Server Components and route handlers, or unwrap with
+`use()` in Client Components. Typing them as plain objects is the cause.
+
+**"Invalid hook call"**
+A hook called outside a component or custom hook, conditionally, or in a
+loop; or two copies of React in the bundle (a linked package or a
+mismatched `react`/`react-dom` version). Check `npm ls react`.
+
+**"Rendered fewer/more hooks than during the previous render"**
+A hook after an early `return` or inside a condition. Move all hooks above
+any return and make the conditions live inside them.
+
+**"Objects are not valid as a React child"**
+Rendering an object, a `Date`, or a Promise directly. Format it to a
+string, or `await` it in a Server Component.
+
+**"You're importing a component that needs useState / useEffect…"**
+*(App Router.)* A Server Component imports something that uses client
+features. Add `'use client'` to the smallest leaf that needs it, not to
+the page.
 
 **"Cannot update a component while rendering a different component"**
 A parent's setter called inside a child's render body. Move to an effect
@@ -77,8 +107,13 @@ or a handler.
 
 **Works in dev, breaks in the production build**
 Minification breaking reliance on `Function.name` or class names,
-tree-shaken side-effect imports, env vars not exposed to the client
-bundle, `process.env` read at runtime on the client.
+tree-shaken side-effect imports, and environment variables. Browser code
+only sees variables with the public prefix (`NEXT_PUBLIC_` in Next.js,
+`VITE_` in Vite), and those are **inlined at build time**: a value
+missing or wrong at build time stays missing or wrong in the deployed
+bundle until you rebuild, and dynamic access (`process.env[name]`) is not
+inlined at all. A variable that works in `next dev` but is `undefined` in
+the browser in production is almost always this.
 
 **Input flips from uncontrolled to controlled**
 `value={undefined}` on the first render. Default to `''`.
@@ -103,6 +138,17 @@ The smallest reproduction that still fails usually *is* the answer.
 2. **Fix** — the minimal change. Show the changed region unless the file
    is small.
 3. **Why it happened** — one line, only if it's non-obvious or likely to recur.
+
+Example, at the right size:
+
+> **Cause:** `components/Clock.tsx:6` renders `new Date().toLocaleTimeString()`
+> during render, so the server and the browser produce different text and
+> hydration fails.
+> **Fix:** for a timestamp that may legitimately differ, put
+> `suppressHydrationWarning` on that one `<time>` element; for a value that
+> must stay live, read it with `useSyncExternalStore`. (Setting state in an
+> effect also works, but recent `react-hooks` lint rules may flag it.)
+> It recurs for any time, locale or random value read during render.
 
 When uncertain, name the hypothesis, say what evidence would confirm it,
 and ask for that specific thing. "I need to see X" beats a confident

@@ -27,13 +27,20 @@ is broken.
 - Fetch in an effect with no abort, no dedupe, no error path.
 - Array index as `key` in a list that reorders or filters.
 - Context value objects recreated every render.
+- Memoisation: apply the rule in SKILL.md §5. Manual memoisation under the
+  compiler is usually noise; missing memoisation is a finding only with a
+  profiler number or a context/memoised-child boundary behind it.
 - `value={undefined}` flipping an input from uncontrolled to controlled.
 
 **Boundaries and data**
 - A client directive at the top of a tree that mostly doesn't need it.
-- Server-only config reachable from the client bundle.
+- Server-only config reachable from the client bundle, or a secret held
+  in a public-prefix variable (SKILL.md §5).
 - External data typed as though it were trusted. Casting `fetch().json()`
   to an interface is a lie the type system will repeat back to you.
+- A Server Action or route handler without its own authentication,
+  authorisation and input validation (it is a public endpoint —
+  `security.md`).
 - `dangerouslySetInnerHTML` without sanitisation.
 - User-controlled values interpolated into `href` (`javascript:` URLs) or
   into query strings unencoded.
@@ -44,6 +51,12 @@ is broken.
 - No accessible name on icon-only controls.
 - Focus unmanaged on open and close of dialogs and menus.
 - Colour as the only signal for state or error.
+- Any SKILL.md §5 item: text contrast, 24px targets, `prefers-reduced-motion`,
+  focus hidden behind sticky UI, usability at 320px width and 200% zoom.
+- ARIA where a native element exists, redundant roles, `aria-hidden` on
+  something focusable, a `role` with no keyboard behaviour to match.
+- A client-side route change with no focus move, no updated document
+  title and no announcement.
 
 **Types**
 - `any`, or a cast defeating the check next to it.
@@ -73,12 +86,20 @@ nits.
 
 If the code is fine, say so in a line and stop. That's a complete review.
 
+Example of one finding, at the right size:
+
+> **Blocking** — `app/profile/actions.ts:14` — `updateProfile` trusts a
+> `userId` from the form, so any signed-in user can edit anyone's profile.
+> Use the id from the session: `const user = await requireUser()` and
+> `saveProfile(user.id, parsed.data)`.
+
 ## Refactoring rules
 
 - Smallest change that removes the problem class. Don't rewrite the file.
 - No silent behaviour changes. If behaviour must change, call it out separately.
 - Keep the project's existing conventions even where they differ from
-  your preference. Consistency beats taste.
+  your preference. Consistency beats taste — except where SKILL.md's
+  precedence level 2 (security and accessibility floors) applies.
 - If the change needs a migration, describe the steps rather than
   dumping a rewritten file.
 

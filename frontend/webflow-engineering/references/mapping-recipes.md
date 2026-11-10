@@ -28,11 +28,23 @@ required by Webflow.
 | `section` | `{"match": "Summary"}` | heading whose text starts with `match` (case-insensitive, trailing colon ignored); takes the blocks beneath it, not the heading |
 | `keyvalue` | `{"key": "Author"}` | a paragraph shaped `Author: Priya Nair` anywhere in the record |
 | `first_paragraph` | – | the first real paragraph; good for auto-excerpts with `maxlen` |
-| `rest` | – | every block no earlier field claimed. Declare it last |
+| `column` | `{"name": "Header"}` | with `table_rows` splitting: the cell under that column header |
+| `rest` | – | every block no earlier field **claimed**. Declare it last |
 | `const` | `{"const": false}` | a fixed value, e.g. a Switch default |
 
 Add `"required": true` to `section`/`keyvalue` to get a warning when the document
 lacks it, instead of a quietly empty field.
+
+## What claims a block
+
+| Source | Claims the blocks it takes? |
+|---|---|
+| `record_title`, `section`, `keyvalue`, `rest` | **Yes** - later fields can't take them again |
+| `first_paragraph` | **No** - it copies, so `rest` still includes that paragraph |
+| `slugify`, `const`, `column` | n/a |
+
+Content appears twice only when `first_paragraph` is used. To move text
+instead of copying it, use a `section`.
 
 ## `as` types
 
@@ -48,9 +60,9 @@ lacks it, instead of a quietly empty field.
 `maxlen` truncates at a word boundary with an ellipsis and logs a warning — use
 it for excerpt fields with a design limit, never on the main body.
 
-Dates written `04/18/2025` are ambiguous. The builder reads them as D/M/Y and
-warns. If the documents are American, fix the source or convert before importing
-— do not let the warning pass unread.
+An all-numeric date that could be D/M or M/D (`04/05/2025`) **stops the run**; the
+builder never guesses. Set top-level `"date_format": "dmy"` or `"mdy"` from the
+person's answer. A day above 12 (`04/18/2025`) is unambiguous and parses without it.
 
 ## recipes
 
@@ -90,9 +102,9 @@ warns. If the documents are American, fix the source or convert before importing
 }
 ```
 
-`excerpt` reuses the first paragraph, which `rest` then also includes — that is
-usually wanted (the excerpt is a preview, not a move). If it should be moved
-instead, use a `section` for it or accept the duplication knowingly.
+`excerpt` uses `first_paragraph`, which **copies** without claiming, so `rest` still
+includes that paragraph - usually wanted (the excerpt is a preview). To move it
+instead, use a `section`.
 
 ### 3. Structured records where each field is its own section
 
@@ -132,5 +144,7 @@ link that pointed at the old URL.
 - **Blocks before the first record** → cover page or TOC; exclude with a reason.
 - **A whole tail section** (appendix, contact block) → decide explicitly: map it
   to a field, or exclude it and say so in the closing report.
-- **Duplicated content** appearing in two fields → an earlier field claimed it
-  and `rest` re-emitted it: check field order, specific before catch-all.
+- **Duplicated content** appearing in two fields → either `first_paragraph` (copies by
+  design) or a field order problem: declare `section`/`keyvalue` before `rest`.
+- **A plain-text section that swallowed many blocks** → the source has no closing
+  heading after it; fix the document or map it `richtext`.

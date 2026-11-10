@@ -22,7 +22,7 @@ With no measurement available, the first response is how to get one:
 |---|---|
 | Slow first load | Lighthouse against a production build, incognito; Network waterfall |
 | Slow interaction, typing lag | React DevTools Profiler; Performance panel long tasks |
-| "The bundle is huge" | Route output from the production build, `@next/bundle-analyzer`, or `rollup-plugin-visualizer` |
+| "The bundle is huge" | Route output from the production build, plus an analyzer for the toolchain in use — `@next/bundle-analyzer` or the framework's built-in analyzer on Next.js, `rollup-plugin-visualizer` on Vite *(tooling is version-dependent; check what the installed major ships)* |
 | Layout jumping | Lighthouse CLS; layout shift markers in the Performance panel |
 
 ## Step 2: Route by symptom
@@ -32,7 +32,12 @@ With no measurement available, the first response is how to get one:
 Roughly in order of typical impact:
 
 1. **Images.** Unsized, unoptimised, wrong format, or lazy-loaded when
-   it's the LCP element. Real dimensions, modern formats, priority on the hero.
+   it's the LCP element. Real dimensions, modern formats, priority on
+   the hero, and `sizes`/`srcset` so phones don't download
+   desktop-sized images. *(How to mark the LCP image is version-dependent:
+   `priority` on `next/image` in older Next.js, `preload` /
+   `fetchPriority="high"` in newer ones — check the installed major
+   before naming a prop.)*
 2. **JavaScript shipped.** Check the route's client bundle. Common
    bloat: an icon set imported as a namespace, a date or utility library
    imported wholesale, an editor or charting library on a page that
@@ -41,13 +46,20 @@ Roughly in order of typical impact:
    the whole subtree into the client bundle. Push the boundary down to
    interactive leaves.
 4. **Code splitting.** Dynamic import for modals, editors, charts, maps —
-   anything absent from first paint.
+   anything absent from first paint. Wrap slow Server Component data in
+   `<Suspense>` boundaries sized to the slow part (and `loading.tsx` per
+   route segment) so the shell streams instead of blocking on the
+   slowest fetch.
 5. **Waterfalls.** Sequential awaits that could be `Promise.all`; client
    fetches that only start after hydration; render-blocking stylesheets.
 6. **Fonts.** Self-hosted or framework-managed, `font-display: swap`,
    preloaded. Avoid a blocking third-party font request.
 7. **Third-party scripts.** Analytics, chat widgets, tag managers — defer
-   or lazy-load.
+   or lazy-load (`next/script` with `afterInteractive` or `lazyOnload` on
+   Next.js; `async`/`defer` elsewhere).
+8. **Barrel files.** An `index.ts` re-exporting a whole feature or icon
+   set can pull unused code (and server-only code) into the route's
+   bundle; import by file path (`foundation.md` barrel rule).
 
 ### Slow interaction / poor INP
 
@@ -59,7 +71,8 @@ Roughly in order of typical impact:
    scoped selector.
 3. **Fix the cause before memoising.** Moving state down or splitting a
    context usually beats wrapping ten components in `React.memo`.
-4. **Long lists.** Past a few hundred rows, virtualise. No amount of
+4. **Long lists.** Past a few hundred rows, virtualise (TanStack Virtual,
+   react-window or the project's existing choice). No amount of
    memoisation rescues 5,000 DOM nodes.
 5. **Main-thread work.** Debounce or throttle input handlers,
    `useDeferredValue` for a heavy derived view, `useTransition` for
@@ -79,13 +92,11 @@ This is where generic advice does the most damage, so be explicit:
 
 - `useMemo`/`useCallback`/`React.memo` aren't free — allocation,
   comparison cost, and reading overhead.
-- Add them when a profiler shows measurable cost, a computation is
-  genuinely expensive, a value feeds an effect's dependencies or a
-  memoised child, or a context value would otherwise be recreated.
-- Skip them for primitives, cheap components, and blanket "best practice"
-  application.
-- **Confirm whether the React Compiler is enabled first.** If it is, most
-  manual memoisation is redundant and adds noise.
+- The rule, including the compiler on/off split, is stated once in
+  SKILL.md §5 — apply that, and don't restate or contradict it here.
+- In a perf answer, name the profiler evidence for every `memo`,
+  `useMemo` or `useCallback` you recommend, and skip them for primitives,
+  cheap components and blanket "best practice" application.
 
 ## Step 4: Report the result
 

@@ -15,17 +15,18 @@ to arrive subtly wrong rather than loudly failing.
 | Switch | boolean | `"yes"` fails |
 | Option | the exact option string | case and trailing spaces matter; unknown values are rejected |
 | Link / Email / Phone | absolute URL / `mailto:` / `tel:` | a bare `example.com` renders as a broken relative link |
-| Image / File | an uploaded asset URL or id | Word's internal media paths never resolve — upload first |
-| Reference / MultiReference | item id(s) | resolve by looking up the referenced collection's slugs first |
+| Image / MultiImage / File | an uploaded asset URL or id | Word's internal media paths never resolve — upload first. **Alt text** is a property of the image: carry it from the document (or a paired alt field) and never ship a meaningful image without it. |
+| Reference / MultiReference | item id(s) | list the referenced collection, build slug → id, substitute ids. An unmatched name is a finding to report, never a guessed id. Create the referenced item first if asked. |
 
 `name` and `slug` are required on every create. Field keys in `fieldData` are
 field **slugs**, not display names — "Post Body" is `post-body`.
 
 ## Rich text: what survives
 
-Reliably supported: `p`, `h1`–`h6`, `ul`, `ol`, `li`, `a`, `strong`, `em`, `u`,
-`s`, `sup`, `sub`, `blockquote`, `br`, `figure`, `figcaption`, `img`, `code`,
-`pre`.
+Believed to be reliably supported (**verify against the current Webflow rich-text
+docs and by reading one item back**): `p`, `h1`–`h6`, `ul`, `ol`, `li`, `a`, `strong`,
+`em`, `u`, `s`, `sup`, `sub`, `blockquote`, `br`, `figure`, `figcaption`, `img`,
+`code`, `pre`.
 
 Anything else — `div`, `span`, `style`, `class`, `font`, `table` styling — is
 either stripped or arrives unstyled. Notable cases:
@@ -48,23 +49,27 @@ either stripped or arrives unstyled. Notable cases:
 
 ## Drafts, publishing and staging
 
-- `create_collection_items` writes to staging. `isDraft: true` keeps the item out
-  of the live site entirely; `isDraft: false` still requires publishing.
-- `publish_collection_items` pushes items live — up to 100 ids per call.
+- `create_collection_items` writes staged items using the **`items[]`** shape (each
+  entry has its own `fieldData`, `isDraft`, `cmsLocaleIds`); the top-level
+  `fieldData` array is deprecated. `isDraft: true` keeps the item off the live site;
+  `isDraft: false` still requires publishing.
+- `publish_collection_items` pushes items live using `items: [{id, cmsLocaleIds?}]`
+  (`itemIds` is deprecated). Batch conservatively and only after verification.
 - Publishing items does **not** publish design or template changes. If the
   template was edited, the site needs publishing separately.
 - `unpublish_collection_items` reverts items to draft, up to 100 per call, and is
   the clean way to undo a premature publish.
-- Deleting is not undoable through the API. When a run goes wrong, prefer
-  updating the items you created over deleting and starting again — and only
-  delete ids you can prove came from this run (`create_responses.json`).
+- `delete_collection_items` is destructive: treat it as not undoable unless you have
+  confirmed otherwise. When a run goes wrong, prefer updating or unpublishing the
+  items you created over deleting, and only delete ids you can prove came from this
+  run (`create_responses.json`). Export the collection to CSV before any bulk change.
 
 ## Localization
 
-If the site has secondary locales, items created without `cmsLocaleIds` land in
-the primary locale only. Secondary locales stay empty and their pages fall back —
+If the site has secondary locales, items created without `cmsLocaleIds` (or `allCmsLocales: true`) land
+in the primary locale only. Secondary locales stay empty and their pages fall back —
 which looks like missing content. Ask which locale the documents are for before
-writing, and if it is not the primary one, pass the locale id.
+writing, and if it is not the primary one, pass its `cmsLocaleId` (from `get_site`).
 
 ## Rate and size limits
 
