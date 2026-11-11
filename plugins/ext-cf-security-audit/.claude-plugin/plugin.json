@@ -1,0 +1,11 @@
+{
+  "name": "ext-cf-security-audit",
+  "displayName": "Cloudflare security audit (external)",
+  "version": "2026.09.14-c1c8a8c",
+  "description": "Unmodified mirror of cloudflare/security-audit-skill (MIT). Opt-in, for full codebase security audits.",
+  "author": {
+    "name": "Cloudflare, Inc. (mirrored by NFN Labs)"
+  },
+  "homepage": "https://github.com/cloudflare/security-audit-skill",
+  "license": "MIT"
+}
