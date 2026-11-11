@@ -1,6 +1,6 @@
 ---
 name: backend-engineering
-description: Owns server-side/API engineering across languages and frameworks (Node/Express, Python FastAPI/Django/Flask, Rails, and others) — the entry point that reads what a project already is, then routes to the companion file owning the area being touched. Triggers on any backend work — new endpoints, services, database/schema changes, auth, error handling, logging, caching, performance tuning, deployment config, tests, and code review.
+description: Owns server-side/API engineering across languages and frameworks (Node/Express, Python FastAPI/Django/Flask, Rails, and others) — the entry point that reads what a project already is, then routes to the companion file owning the area being touched. Triggers on any backend work — new endpoints, services, database/schema changes, auth, payments and credits, webhooks, AI model integrations, error handling, logging, caching, performance tuning, deployment config, tests, and code review.
 ---
 
 # Backend engineering
@@ -19,9 +19,11 @@ description: Owns server-side/API engineering across languages and frameworks (N
 | Exceptions, centralized error handling, structured logging, observability | `companions/error-handling-logging.md` |
 | Caching, rate limiting, PM2/process management, Nginx, deployment readiness | `companions/performance-deployment.md` |
 | Unit/integration tests, mocking, coverage targets, CI gates | `companions/testing.md` |
+| Payments, credits/usage balances, subscriptions, refunds, billing webhooks | `companions/payments-billing.md` |
+| Anything that calls an AI model (LLM, image generation, vision, moderation) or stores its output | `companions/ai-features.md` |
 | Reviewing a PR/diff, anti-patterns, approve vs request-changes | `companions/code-review.md` |
 
-One companion, occasionally two. Loading all eight for one change buries the answer under
+One companion, occasionally two. Loading all ten for one change buries the answer under
 context that doesn't apply.
 
 ## 2 · Read the project first
@@ -96,6 +98,13 @@ when it runs and the tests pass.
    can grow unbounded; cap page size server-side.
 8. **Every side-effecting operation is traceable** — logged with context (who/what/when) at
    the point it happens, without leaking PII or secrets.
+9. **Identity and tenant come only from a verified credential.** Tokens from other providers
+   are verified (signature, audience, issuer, expiry), never just decoded; the tenant and
+   acting user are read from the credential, never from a header, query or body.
+10. **Money moves exactly once, atomically.** Amounts and plans come from your catalog or the
+    payment provider, never the client; every payment is applied once under a unique key;
+    balances change only through conditional or relative updates with a ledger row in the
+    same transaction.
 
 ## 6 · Working rules
 
