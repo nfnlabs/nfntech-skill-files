@@ -1,118 +1,84 @@
 ---
 name: backend-engineering
-description: Owns server-side/API engineering across languages and frameworks (Node/Express, Python FastAPI/Django/Flask, Rails, and others) — the entry point that reads what a project already is, then routes to the companion file owning the area being touched. Triggers on any backend work — new endpoints, services, database/schema changes, auth, payments and credits, webhooks, AI model integrations, error handling, logging, caching, performance tuning, deployment config, tests, and code review.
+description: Owns server-side/API engineering across languages and frameworks (Node/Express, Python FastAPI/Django/Flask, Rails, and others) — the entry point that reads the existing project, then routes to one companion. Triggers on any backend work — endpoints, services, schema and migrations, auth, payments and credits, webhooks, AI model calls, error handling, logging, caching, deployment, tests, and code review.
 ---
 
 # Backend engineering
 
-> Read the codebase before advising it, then open exactly one companion. An existing
-> convention outranks anything written in these files.
+> Read the codebase before advising it, then open one companion. An existing convention
+> outranks anything in these files.
 
 ## 1 · Route by task
 
 | The task | Open |
 |---|---|
-| New service bootstrap, project layout, config/env loading, concurrency basics | `companions/foundation.md` |
-| Routes/controllers, layering, REST conventions, response shape, versioning, framework idioms | `companions/architecture.md` |
-| Schema, migrations, queries, indexing, transactions, connection pooling, naming | `companions/data-layer.md` |
-| AuthN/authZ, input validation, secrets, headers, CORS, injection risks | `companions/security.md` |
-| Exceptions, centralized error handling, structured logging, observability | `companions/error-handling-logging.md` |
-| Caching, rate limiting, PM2/process management, Nginx, deployment readiness | `companions/performance-deployment.md` |
-| Unit/integration tests, mocking, coverage targets, CI gates | `companions/testing.md` |
-| Payments, credits/usage balances, subscriptions, refunds, billing webhooks | `companions/payments-billing.md` |
-| Anything that calls an AI model (LLM, image generation, vision, moderation) or stores its output | `companions/ai-features.md` |
-| Reviewing a PR/diff, anti-patterns, approve vs request-changes | `companions/code-review.md` |
+| Bootstrap, layout, config and env loading, async basics | `companions/foundation.md` |
+| Routes, layering, REST, response shape, framework idioms | `companions/architecture.md` |
+| Schema, migrations, queries, transactions, shared values under concurrency | `companions/data-layer.md` |
+| AuthN/AuthZ, tokens, tenants, validation, secrets, webhooks, SSRF, uploads, rate-limit policy | `companions/security.md` |
+| Errors, logging, health checks | `companions/error-handling-logging.md` |
+| Caching, rate-limit mechanics, pooling, PM2, Nginx, deploy readiness | `companions/performance-deployment.md` |
+| Tests and CI gates | `companions/testing.md` |
+| Payments, credits, subscriptions, refunds, billing webhooks | `companions/payments-billing.md` |
+| Anything that calls an AI model or stores its output | `companions/ai-features.md` |
+| Reviewing a PR, a diff or a whole codebase | `companions/code-review.md` |
 
-One companion, occasionally two. Loading all ten for one change buries the answer under
-context that doesn't apply.
+Usually one companion, occasionally two.
 
 ## 2 · Read the project first
 
-Never skip this on a codebase that already exists — every companion's advice is a comparison
-against what's there, and you can't compare against an assumption.
-
 ```sh
-cat package.json pyproject.toml requirements.txt Gemfile go.mod 2>/dev/null   # stack and majors
-ls CLAUDE.md AGENTS.md .cursorrules 2>/dev/null       # binding; outranks these files
-find . -maxdepth 3 -type d \( -name node_modules -o -name .git -o -name venv \) -prune -o -type d -print | sort
-grep -rl "express()\|FastAPI(\|Flask(\|Rails.application" . --include="*.{js,ts,py,rb}" 2>/dev/null | head
-cat .env.example 2>/dev/null                          # required config surface
-ls migrations/ db/migrate/ alembic/versions/ 2>/dev/null | tail -5   # migration convention
+cat package.json pyproject.toml requirements.txt Gemfile go.mod 2>/dev/null  # stack and majors
+ls CLAUDE.md AGENTS.md .cursorrules 2>/dev/null                              # binding; outranks these files
+cat .env.example 2>/dev/null                                                  # config surface
+ls migrations/ db/migrate/ alembic/versions/ 2>/dev/null | tail -5           # migration convention
 ```
 
-Four answers decide how your change should look: **which framework and major version**
-(validation and DI idioms changed shape across Express 4→5, FastAPI's dependency system,
-Django REST Framework versions), **where business logic already lives** (services, use
-cases, `app/services/`), **whether a typed error family exists**, and **which existing
-endpoint is the cleanest example** to copy. That last one is the most valuable — a named
-reference implementation carries a hundred conventions no document can describe.
+Answer four questions: which framework and major version, where business logic already
+lives, whether a typed error family exists, and which existing endpoint is the cleanest
+example to copy. The reference endpoint matters most, because it carries conventions no
+document describes.
 
 ## 3 · Greenfield or in flight
 
-| Signal | Then |
-|---|---|
-| Empty repo, or only framework scaffolding (`create-express-app`, `django-admin startproject`) | **Greenfield** — you choose the stack; `companions/foundation.md` has the defaults and the build order |
-| Endpoints, services or migrations already shipped | **In flight** — the codebase has answered most questions; extend it consistently |
-| Structure but no code worth keeping | ask before treating it as greenfield |
-
-In flight means: adopt, then propose. Match local naming, folder layout, response shape and
-error handling, including idioms these files would not have chosen. Improvements are a
-separate short list with costs attached, not applied inside an unrelated change. Don't
-reformat files you happened to open, and don't "fix" an undocumented deliberate choice
-without asking.
+- **Empty repo or only scaffolding:** greenfield. You choose the stack (`foundation.md`).
+- **Endpoints, services or migrations already shipped:** in flight. Match local naming,
+  layout, response shape and error handling, even where these files would choose
+  differently. List improvements separately, with costs. Don't reformat files you open.
+- **Structure but no real code:** ask before treating it as greenfield.
 
 ## 4 · Feature build order
 
-The one sequence worth stating here, because working outward from the route produces
-services shaped by HTTP convenience:
+1. Name the reference endpoint you're copying (`architecture.md`)
+2. Schema and migration, if new data is involved (`data-layer.md`)
+3. Service function: pure business logic, no request or response objects (`architecture.md`)
+4. Validation schema at the boundary (`security.md`)
+5. Controller: parse, call service, shape response (`architecture.md`)
+6. Typed errors, mapped by the central handler (`error-handling-logging.md`)
+7. Service unit tests, then endpoint happy and unhappy paths (`testing.md`)
 
-1. Name the reference endpoint you're copying — `architecture.md`
-2. Schema/migration first if new data is involved — `data-layer.md`
-3. Service function: pure business logic, no request/response objects — `architecture.md`
-4. Input validation schema at the boundary — `security.md`
-5. Controller/route: parse input → call service → shape response — `architecture.md`
-6. Typed errors mapped by the centralized handler — `error-handling-logging.md`
-7. Tests: service unit tests, then endpoint happy/unhappy paths — `testing.md`
-
-Step 3's separation isn't a style preference; it's what makes step 7 cheap without spinning
-up an HTTP server for every test.
+Step 3 is what keeps step 7 cheap: services get tested without an HTTP server.
 
 ## 5 · Invariants
 
-These hold in every companion, so they're stated once. A change breaking one is wrong even
-when it runs and the tests pass.
+These hold everywhere. A change that breaks one is wrong even if it runs and the tests pass.
 
-1. **Layers point one way** — routing/controllers → services (business logic) → data access.
-   Services never import framework request/response objects.
-2. **All external input is validated at the boundary** — body, query, params, headers — before
-   business logic runs. Never trust a client-supplied type, presence, or ID for authorization.
-3. **One response shape for the whole API.** Success and error payloads never disagree in
-   structure between two endpoints.
-4. **Typed errors, centralized handling.** Domain errors are typed exceptions; one handler
-   maps them to the response shape. No raw stack trace or DB error reaches a client.
-5. **No secrets in code, logs, or git.** Config comes from env vars/a secrets manager, loaded
-   and validated once at startup — never hardcoded, never read ad hoc mid-request.
-6. **Schema changes are migrations, always.** Never hand-edit a production schema or an
-   already-applied migration; never use ORM auto-sync against a real environment.
-7. **No N+1s, no unbounded loads.** Batch/join known access patterns; paginate any list that
-   can grow unbounded; cap page size server-side.
-8. **Every side-effecting operation is traceable** — logged with context (who/what/when) at
-   the point it happens, without leaking PII or secrets.
-9. **Identity and tenant come only from a verified credential.** Tokens from other providers
-   are verified (signature, audience, issuer, expiry), never just decoded; the tenant and
-   acting user are read from the credential, never from a header, query or body.
-10. **Money moves exactly once, atomically.** Amounts and plans come from your catalog or the
-    payment provider, never the client; every payment is applied once under a unique key;
-    balances change only through conditional or relative updates with a ledger row in the
-    same transaction.
+1. **Layers point one way.** Routes, then services, then data access. Services never import request or response objects. (`architecture.md`)
+2. **All external input is validated at the boundary.** Never trust a client-supplied type, presence or ID for authorization. (`security.md`)
+3. **One response shape, one error handler.** Errors are typed and mapped centrally. No stack trace or DB error reaches a client. (`architecture.md`, `error-handling-logging.md`)
+4. **No secrets in code, logs or git.** Config is loaded and validated once, at startup. (`foundation.md`, `security.md`)
+5. **Schema changes are migrations.** Each has a working `up` and `down`. Never edit an applied migration. (`data-layer.md`)
+6. **No N+1s and no unbounded loads.** Join known access patterns, paginate lists, cap page size server-side. (`data-layer.md`, `architecture.md`)
+7. **Side effects are traceable.** Log who, what and when, without PII or secrets. (`error-handling-logging.md`)
+8. **Identity and tenant come only from a verified credential.** Third-party tokens are verified, never decoded. (`security.md` §2)
+9. **Money moves exactly once, atomically, for the amount the provider reports.** (`payments-billing.md`, `data-layer.md`)
 
 ## 6 · Working rules
 
-Say which companion you followed and, on an existing codebase, which reference endpoint you
-copied — it makes a wrong route cheap to correct. Where the codebase and a companion
-disagree, the codebase wins and you say so. Ask only what the code can't answer: the auth
-model and multi-tenancy shape have no safe default and are expensive to retrofit. Everything
-else is visible in the repo or has a defensible default.
+Name the companion you followed, and the reference endpoint if the codebase has one. When
+the codebase and a companion disagree, the codebase wins, and you say so. Ask only what the
+code can't answer, mainly the auth model and tenancy shape, which have no safe default and
+are costly to retrofit.
 
-Finish with the project's lint/format/test commands and, for schema changes, confirm the
-migration has a working `up` and `down`. Name anything you deliberately left undone.
+Finish with the project's lint, format and test commands. For schema changes, confirm `up`
+and `down` work. List anything you deliberately left undone.
