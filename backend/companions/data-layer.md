@@ -1,151 +1,78 @@
 ---
 name: data-layer
-description: Backend data layer — schema and migrations, naming conventions, query patterns, N+1 avoidance, indexing, transactions, and connection pooling. Read when adding a model/table, writing a migration, or reviewing a diff that touches queries.
+description: Backend data layer — schema and migrations, naming, query patterns, N+1 avoidance, indexes, transactions, and concurrency on shared values such as balances, stock and uniqueness. Read when adding a table, writing a migration, or changing queries.
 ---
 
 # Data layer
 
-> Every schema change goes through a migration, checked into version control. Never hand-edit
-> a production schema, and never edit a migration that's already been applied.
+> Every schema change goes through a version-controlled migration. Never hand-edit a
+> production schema, and never edit a migration that has already been applied.
 
-Business logic that calls into this layer → `architecture.md`. Deployment-time connection
-tuning → `performance-deployment.md`.
+Business logic that calls this layer → `architecture.md`. Pool sizing and deployment →
+`performance-deployment.md`.
 
-## 1 · Signals to read before deciding
+## 1 · Before deciding
 
-| Check | Where | What it settles |
-|---|---|---|
-| ORM/query builder | `package.json`/`requirements.txt` (Sequelize, Prisma, SQLAlchemy, ActiveRecord…) | migration CLI and query idiom to use |
-| Migration convention | `migrations/`, `db/migrate/`, `alembic/versions/` | naming, up/down pattern already in use |
-| Naming convention | existing table/column names | snake_case vs whatever the ORM already uses — don't mix both in one schema |
-| Pooling config | wherever the DB client is constructed | current pool size and timeouts |
+Check the ORM in the dependencies (Sequelize, Prisma, SQLAlchemy, ActiveRecord…) for the
+migration CLI and query idiom. Check `migrations/`, `db/migrate/` or `alembic/versions/` for
+the up/down pattern in use. Match the naming the schema already uses, and never mix
+snake_case with an ORM's camelCase in one schema.
 
-## 2 · Naming conventions
+## 2 · Naming
 
-- **Tables**: plural `snake_case` (`users`, `order_items`). Join tables: `user_roles`.
-- **Columns**: `snake_case` in SQL (`created_at`, `is_active`, `device_id`); match the
-  Mongo/ORM convention if it differs from SQL — don't mix both in one schema.
-- **Primary key** `id`; **foreign key** `<singular_table>_id` (`user_id`) — never an unrelated
-  name.
-- **Booleans** prefixed `is_`/`has_`/`can_`. **Timestamps** `created_at`, `updated_at`,
-  `deleted_at` (soft delete) — always UTC.
-- **Status/enum columns**: constrain via a DB enum or check constraint, not a free-text string.
-- Every foreign key needs an actual DB constraint (not just convention) and an index. Avoid
-  redundant derived data unless it's a deliberate, documented denormalization.
-
-```sql
-CREATE TABLE orders (
-  id SERIAL PRIMARY KEY,
-  customer_id INTEGER NOT NULL REFERENCES customers(id),
-  status VARCHAR(20) NOT NULL CHECK (status IN ('pending','active','archived')),
-  is_active BOOLEAN NOT NULL DEFAULT true,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-CREATE INDEX idx_orders_customer_id ON orders(customer_id);
-```
+- Tables: plural `snake_case` (`users`, `order_items`). Join tables: `user_roles`.
+- Columns: `snake_case`. Primary key `id`. Foreign key `<singular_table>_id`.
+- Booleans: `is_`, `has_`, `can_`. Timestamps: `created_at`, `updated_at`, `deleted_at` (soft delete), always UTC.
+- Status columns: a DB enum or check constraint, not free text.
+- Every foreign key has a real DB constraint and an index.
+- No redundant derived data, unless it's a documented denormalization.
 
 ## 3 · Migrations
 
-- Never use ORM auto-sync (`sequelize.sync({ alter: true })`, `Model.sync()`) against a real
-  environment — it can silently drop or alter columns. Use versioned migration files.
-- One change per migration file, timestamp-prefixed so order is deterministic
-  (`20260805121500_create_orders_table.js`). Name it after what it does, not the ticket number.
-- Every migration needs a working `up` (apply) **and** `down` (revert). Don't ship one you
-  can't roll back.
-- Generate migrations with the ORM/framework's CLI (`sequelize-cli migration:generate`,
-  `knex migrate:make`, `alembic revision`, `prisma migrate dev`, `rails g migration`) rather
-  than hand-writing boilerplate.
-- Never edit an already-applied migration — write a new one to fix forward.
-- Run migrations on startup only for small apps/single-instance deploys, guarded so it can't
-  run concurrently from multiple instances. For multi-instance/production deploys, run
-  migrations as a separate release step (CI/CD job or `predeploy` script) — parallel instances
-  booting simultaneously must not race to apply the same migration.
-
-```js
-// index.js — small/single-instance: run pending migrations before accepting traffic
-async function start() {
-  await runMigrations();
-  await sequelize.authenticate();
-  app.listen(PORT);
-}
-```
+- Generate them with the framework's CLI (`knex migrate:make`, `prisma migrate dev`, `alembic revision`, `rails g migration`…).
+- Never use ORM auto-sync (`sync({ alter: true })`) against a real environment. It can silently drop columns.
+- One change per file, timestamp-prefixed, named for what it does, not a ticket number.
+- Every migration has a working `up` and `down`.
+- Never edit an applied migration. Write a new one to fix forward.
+- Small single-instance apps may run migrations at startup, guarded against concurrent runs. Multi-instance deploys run migrations as a separate release step, so instances booting together never race.
 
 ## 4 · Queries
 
-- Never query the database directly from a controller — go through a service/repository.
-- Select only needed fields (`SELECT id, name`, not `SELECT *`).
-- Watch for N+1 queries: eager-load/`select_related`/`includes`/`JOIN` known access patterns
-  instead of looping and querying per item.
+- Query only through a service or repository, never from a controller.
+- Select the fields you need, not `SELECT *`.
+- Eager-load or join known access patterns. Never query per item in a loop.
+- Index every column used in `WHERE`, `JOIN` or `ORDER BY` on tables that will grow. Don't index speculatively.
+- Wrap multi-step writes that must succeed together in a transaction. Retries don't replace a transactional boundary.
+- Enforce invariants in the database (`NOT NULL`, `CHECK`, unique, foreign keys), not only in application code.
+- Use parameterized queries only (`security.md` §3).
+- Use a connection pool. Verify database TLS with `ssl: { rejectUnauthorized: true, ca: <provider CA> }`. `rejectUnauthorized: false` encrypts the connection but doesn't stop a man-in-the-middle.
 
 ```js
-// Bad — N+1
-const orders = await Order.findAll();
-for (const o of orders) { o.customer = await Customer.findByPk(o.customerId); }
-
-// Good
-const orders = await Order.findAll({ include: [{ model: Customer }] });
+// Bad: N+1                                          // Good
+for (const o of await Order.findAll()) {             const orders = await Order.findAll({ include: [Customer] });
+  o.customer = await Customer.findByPk(o.customerId);
+}
 ```
 
-- Add indexes for every column used in a `WHERE`, `JOIN`, or `ORDER BY` on tables expected to
-  grow. Don't add indexes speculatively on columns that aren't queried.
-- Wrap multi-step writes that must succeed or fail together in a database transaction. Don't
-  assume application-level retries make up for a missing transactional boundary.
-- Set a `NOT NULL` + appropriate default/constraint at the DB level for invariants that must
-  always hold — don't rely on application code alone to guarantee data integrity.
-- Never build queries by string-formatting values into SQL, even for "trusted" internal
-  values — always use bound/parameterized queries.
-- Use connection pooling; never open a new raw connection per request.
-- Verify TLS to the database in every deployed environment: `ssl: { rejectUnauthorized: true,
-  ca: <provider CA bundle> }`. `rejectUnauthorized: false` encrypts the connection but accepts
-  any certificate, so it doesn't stop a man-in-the-middle.
+## 5 · Concurrency on shared values
 
-### Concurrency on shared values
+Any value two requests can change at once (a balance, credits, stock, a seat limit, a
+status) must be arbitrated by the database, not by application code.
 
-Any value two requests can change at once — a balance, a credit count, stock, a seat limit,
-a status — needs the database to arbitrate, not application code.
-
-- **No check-then-act.** Reading a value, deciding in code, then writing it back lets two
-  requests both pass the check. Put the condition in the write:
+- **No check-then-act.** Put the condition in the write, and treat "no row returned" as "not enough":
   `UPDATE balances SET credits = credits - 1 WHERE user_id = $1 AND credits > 0 RETURNING credits`
-  and treat "no row returned" as "not enough".
-- **Relative updates, not absolute ones.** `SET balance = balance + $n`, never
-  `SET balance = <value read earlier> + $n`, which silently overwrites a concurrent change.
-- **Row locks only inside the transaction that uses them.** `SELECT … FOR UPDATE` protects
-  nothing once its transaction commits; if the decision and the write are minutes apart
-  (a slow external call in between), reserve first with a conditional update and refund on
-  failure.
-- **Uniqueness belongs to the database.** "Only one X per Y" (one subscription per user, one
-  credit per payment, one row per event ID) is a unique constraint; an application check
-  before insert races.
-- **Ledger and balance move together** — the balance change and its audit/ledger row are
-  written in the same transaction, or a crash between them leaves them disagreeing forever.
+- **Relative updates only.** `SET balance = balance + $n`. Never write back a value read earlier, because that silently overwrites concurrent changes.
+- **Locks live inside their transaction.** `SELECT … FOR UPDATE` protects nothing after commit. If a slow external call sits between the decision and the write, reserve first with a conditional update, and refund on failure.
+- **Uniqueness is a DB constraint.** "One X per Y" (one subscription per user, one credit per payment, one row per event ID) needs a unique index. An application-level check races.
+- **Ledger and balance move together**, in the same transaction.
 
-Test these against a real database with parallel requests (→ `testing.md`); a mocked
+Test these against a real database with parallel requests (`testing.md` §4). A mocked
 repository can't show a race.
-
-## 5 · Failure modes
-
-| Symptom | Root cause | Correct fix |
-|---|---|---|
-| Loop querying per item | N+1 | eager-load / join |
-| Query slows down as a table grows | missing index on a `WHERE`/`JOIN`/`ORDER BY` column | add a targeted index |
-| Partial write left the DB inconsistent | multi-step write not wrapped in a transaction | wrap in a transaction |
-| Two app instances both try to run the same migration | migrations run on boot in a multi-instance deploy | move migrations to a separate release step |
-| Columns silently dropped after a deploy | ORM auto-sync used against a real environment | versioned migrations only |
-| A migration can't be reverted | shipped without a `down` | always write both directions |
-| Duplicate/invalid data slips in | invariant enforced only in application code | add a DB-level constraint |
-| Balance goes negative / one credit spent twice | check-then-act, or lock released before the write | conditional `UPDATE … WHERE … RETURNING` |
-| A concurrent change disappears | absolute write of a value read earlier | relative update (`col = col + $n`) |
-| Ledger total doesn't match balance | ledger row written outside the balance transaction | same transaction |
 
 ## 6 · Done when
 
-- Schema change has a migration with both `up` and `down`, generated via the framework CLI
-- New/changed foreign keys have both a constraint and an index
-- No query loops per item where a join/eager-load would do
-- Multi-step writes are transactional
-- Shared counters change only through conditional or relative updates; uniqueness rules are
-  DB constraints
+- Schema changes have a migration with `up` and `down`, generated by the CLI
+- Every foreign key has a constraint and an index
+- No per-item queries in loops; multi-step writes are transactional
+- Shared counters change only through conditional or relative updates; uniqueness is enforced by the database
 - Database TLS verifies the server certificate
-- No raw string interpolation into a query

@@ -1,162 +1,61 @@
 ---
 name: testing
-description: Backend test suites — unit test structure, mocking external dependencies, coverage targets by path criticality, assertions, and CI gates. Read when adding tests, raising coverage, or fixing a flaky test.
+description: Backend test suites — unit and integration tests, mocking external dependencies, coverage targets, security and money-path tests, and CI gates. Read when adding tests, raising coverage, or fixing a flaky test.
 ---
 
 # Testing
 
 > A test earns its place by failing when the behavior breaks. Mock external dependencies
-> only; nothing hits a real network, DB, or clock in a unit test.
+> only. A unit test never touches a real network, DB or clock.
 
-Business logic under test lives in services, not controllers → `architecture.md`. Reviewing
-test coverage on a PR → `code-review.md`.
+Business logic under test lives in services → `architecture.md`. Reviewing test coverage on a PR → `code-review.md`.
 
-## 1 · Principles
+## 1 · Unit tests
 
-Arrange-Act-Assert. One assertion per test (or related assertions on one concept). Test
-behavior/output, not implementation details. Unit tests are fast (no network/DB, ideally
-under 100ms each) and isolated — no shared state between tests, no test depends on another's
-side effects. Test names describe what's being tested.
+- Arrange-Act-Assert, one concept per test. Assert behavior and output, not internal calls.
+- Keep them fast (ideally under 100 ms), isolated, and free of shared state. Reset state in `beforeEach`.
+- Name tests for what they check: `should throw if item price is negative`, not `works` or `test1`.
+- Mock external dependencies (DB, third-party APIs, payment gateways) and inject them through constructors.
+- Assert the fields that matter, not the whole object, so unrelated changes don't break the test.
+- Use fixture factories (`createMockUser(overrides)`). Adding a required field then touches one factory, not every call site. This is the most common reason test suites get abandoned.
 
-```js
-// Bad                          // Good
-it('works', () => {...});       it('should return 0 for empty items', () => {...});
-it('test1', () => {...});       it('should throw error if item price is negative', () => {...});
-```
+## 2 · Integration tests
 
-## 2 · Coverage targets
+- Use a real containerized or in-memory database. A mocked-DB test can pass while the real query is broken.
+- Test endpoints through the HTTP layer.
+- Each endpoint needs at least: one happy path, one validation failure, one auth failure (if protected), and one not-found or edge case.
+- Cover happy paths, unhappy paths (invalid input, downstream failure, timeout) and edge cases (null, empty, boundary values).
+
+## 3 · Coverage targets
 
 | Path type | Target |
 |---|---|
-| Critical (auth, payments, data mutations) | ≥80% |
+| Critical: auth, payments, data mutations | ≥80% |
 | Standard business logic | ≥70% |
-| Utilities/helpers | ≥80% |
-| Controllers (HTTP layer) | ≥60% — prefer integration tests here |
+| Utilities and helpers | ≥80% |
+| Controllers (HTTP layer) | ≥60%; prefer integration tests here |
 
-Every endpoint needs at minimum: one happy-path test, one validation-failure test, one
-auth-failure test (if protected), one not-found/edge-case test. Test business logic
-independent of the HTTP layer wherever the architecture allows it — unit test the service
-function, not just the route.
+Strip generated and vendor files from coverage, or the number means nothing.
 
-## 3 · Mocking & isolation
+## 4 · Security and money paths
 
-Mock external dependencies (DB, third-party APIs) — never call them for real in a unit test.
-Use a real (containerized/in-memory) database for integration tests instead of mocking the
-DB — a mocked-DB test can pass while the real query is broken.
+Mocks can't show who can do what, or how many times something happens. These need
+integration tests against a real database:
 
-```js
-describe('userService.getUser', () => {
-  let userRepository;
-  beforeEach(() => {
-    userRepository = { findById: jest.fn().mockResolvedValue({ id: 1, name: 'Alice' }) };
-  });
+- **A regression test for every security fix** that fails on the old code. Examples: a forged token is rejected, a cross-tenant request returns 404, a replayed webhook credits once.
+- **An authorization matrix per protected resource:** owner ✓, other user in the same tenant ✗, user in another tenant ✗, wrong token kind ✗, no token ✗. IDOR bugs live in the rows nobody wrote.
+- **Concurrency:** fire N parallel requests at a balance of 1, and assert exactly one succeeds and the balance ends at 0 (`data-layer.md` §5).
+- **Idempotency:** deliver the same webhook or confirmation twice, and assert one effect.
+- **Outbound URLs:** private, loopback and metadata addresses are refused (`security.md` §9).
 
-  it('should fetch user from repository', async () => {
-    const userService = new UserService(userRepository);
-    const user = await userService.getUser(1);
-    expect(user.id).toBe(1);
-    expect(userRepository.findById).toHaveBeenCalledWith(1);
-  });
-});
-```
+Asserting the SQL text of an atomic update with a regex proves the text, not the behavior.
 
-```js
-const mockGateway = { processPayment: jest.fn() };
+## 5 · CI and done
 
-it('should throw error if gateway fails', async () => {
-  mockGateway.processPayment.mockRejectedValue(new Error('Timeout'));
-  const service = new PaymentService(mockGateway);
-  await expect(service.charge({ amount: 100 })).rejects.toThrow();
-});
-```
+Run tests, the linter and a dependency audit in CI on every change, not just locally.
 
-## 4 · What to cover
-
-Happy path, unhappy paths (invalid input, downstream failure, timeout), and edge cases
-(null, empty, boundary values):
-
-```js
-it('should throw error if customer does not exist', async () => {
-  await expect(orderService.create({ customerId: 999, items: [] }))
-    .rejects.toThrow('Customer not found');
-});
-
-it('should handle very large quantities', () => {
-  const total = orderService.calculateTotal([{ price: 100, qty: 999999 }]);
-  expect(total).toBe(99999900);
-});
-```
-
-Avoid brittle assertions — assert what matters, not the whole shape:
-
-```js
-// Bad — breaks on any unrelated field change
-expect(user).toEqual({ id: 1, name: 'Alice', email: 'a@x.com', createdAt: '...', updatedAt: '...' });
-
-// Good
-expect(user).toEqual(expect.objectContaining({ id: 1, name: 'Alice', email: 'a@x.com' }));
-```
-
-### Security and money paths
-
-Unit tests with mocks are not enough where the risk is who-can-do-what or how-many-times.
-These need integration tests through the HTTP layer against a real database:
-
-- **Every security fix gets a regression test** that fails on the old code — a forged token
-  is rejected, a cross-tenant request returns 404, a replayed webhook credits once.
-- **An authorization matrix for each protected resource:** owner ✓, other user in the same
-  tenant ✗, user in another tenant ✗, wrong token kind ✗, no token ✗. IDOR bugs live in the
-  rows nobody wrote.
-- **Concurrency on shared values:** fire N parallel requests at a balance of 1 and assert
-  exactly one succeeds and the balance ends at 0 (→ `data-layer.md`).
-- **Idempotency:** deliver the same webhook or confirmation twice; assert one effect.
-- **Outbound URL checks:** private, loopback and metadata addresses are refused.
-
-Asserting the SQL string of an atomic update with a regex proves the text, not the behavior.
-
-## 5 · Fixture factories
-
-```js
-function createMockUser(overrides = {}) {
-  return { id: 1, name: 'Alice', email: 'alice@example.com', isActive: true, ...overrides };
-}
-
-it('should handle inactive user', () => {
-  expect(userService.getDiscount(createMockUser({ isActive: false }))).toBe(0);
-});
-```
-
-Adding a required field to the model then touches one factory instead of every call site —
-this is the single biggest reason test suites get abandoned halfway through a project.
-
-## 6 · Common mistakes
-
-| Mistake | Issue | Fix |
-|---|---|---|
-| Testing implementation | asserting internal calls instead of output | test public behavior/output |
-| Shared state between tests | tests affect each other | reset state in `beforeEach` |
-| Brittle assertions | breaks on unrelated refactors | assert on behavior, not the whole shape |
-| Only happy path tested | unhappy paths and edge cases ship unverified | add failure and boundary tests |
-| Mocking too much | ends up testing the mocks, not the code | mock only external dependencies |
-| Slow tests | real I/O in a unit test | mock it; keep integration tests separate |
-| `console.log`/no assertions | test doesn't actually verify anything | assert on the real output |
-
-## 7 · CI gates
-
-```bash
-npm test                          # or the project's test runner
-npm test -- --coverage
-```
-
-Run tests, linter, and a dependency/security audit in CI on every change, not just locally.
-Strip generated/vendor files from coverage or the number is meaningless.
-
-## 8 · Done when
-
-- New behavior has a test that fails before the fix and passes after
-- Auth, tenant scoping, payments and credits have integration tests on a real database,
-  including an authorization matrix and a concurrency test
-- Coverage on the changed critical path meets the target above
-- Happy path plus at least two unhappy paths covered per new function/endpoint
-- No test hits a real network, DB, or depends on another test's side effects
-- Suite passes from a clean run, and passes twice in a row (not flaky)
+- New behavior has a test that fails before the fix and passes after it.
+- Security and money paths have the authorization matrix, concurrency and idempotency tests above.
+- Coverage on the changed critical path meets the target.
+- No test touches a real network or DB, or depends on another test's side effects.
+- The suite passes from a clean run, and passes twice in a row. A flaky test is a bug.

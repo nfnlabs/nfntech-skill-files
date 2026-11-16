@@ -1,107 +1,75 @@
 ---
 name: code-review
-description: Backend code review — the pre-approval checklist, anti-patterns to flag, and when to request changes vs. approve with comments. Read when reviewing a backend PR or diff.
+description: Backend code review — the pre-approval checklist, code smells to flag, when to request changes vs. approve with comments, and whole-codebase reviews. Read when reviewing a backend PR, diff or codebase.
 ---
 
 # Code review
 
-> Review with respect but rigor. Catch issues early, explain the reasoning, and assume good
-> intent.
+> Review with rigor and respect. Explain the reasoning, assume good intent, and separate
+> what blocks from what doesn't.
 
-The underlying rules being checked against live in `architecture.md`, `data-layer.md`,
-`security.md`, `error-handling-logging.md`, and `testing.md` — this file is the reviewer's
-lens on all of them.
+This file is the reviewer's lens. The rules being checked live in the companion files, and
+each checklist item names its owner.
 
 ## 1 · Pre-approval checklist
 
-- [ ] No swallowed errors or silent failures
-- [ ] All external data (API/DB/SDK) null-checked before use
-- [ ] No secrets/keys hardcoded or logged
-- [ ] Input validated at every boundary (params, query, body)
-- [ ] Consistent API response shape
-- [ ] No N+1 queries or unbounded collection loads
-- [ ] Logging includes context, no PII/secrets, correct level
-- [ ] No dead code, leftover debug logs, or stray `console.log`
-- [ ] Existing helpers reused instead of duplicated
-- [ ] Tests cover happy path **and** unhappy paths, ≥80% on critical paths
-- [ ] No obvious race conditions or concurrency issues
-- [ ] Third-party identity tokens verified, not decoded; tenant/user taken only from the credential
-- [ ] Every query on a tenant's data scopes by tenant and owner
-- [ ] Money and credits: amounts and plans from the provider, not the client; each payment
-      applied once; balances changed by conditional/relative updates (→ `payments-billing.md`)
-- [ ] Webhooks: raw-body signature, constant-time compare, event-ID dedupe
-- [ ] Server-side fetches of user-supplied URLs are allow-listed or IP-checked
-- [ ] No auth bypass reachable in a deployed environment
-- [ ] Model calls: safety settings on, inputs and outputs moderated, per-user limits (→ `ai-features.md`)
-- [ ] Deleting a record deletes its stored files
-- [ ] Diff is minimal and scoped to the request
+Check the diff against each item. Don't assume.
 
-## 2 · What to look for, by area
+- [ ] Errors not swallowed; external data null-checked (`error-handling-logging.md`)
+- [ ] No secrets hardcoded or logged (`security.md` §4)
+- [ ] Input validated at every boundary; response shape consistent (`security.md` §1, `architecture.md`)
+- [ ] No N+1 queries or unbounded loads (`data-layer.md`)
+- [ ] Logs have context, no PII, correct level (`error-handling-logging.md` §2)
+- [ ] No dead code, `console.log` or `debugger`; existing helpers reused
+- [ ] Happy and unhappy paths tested; critical paths at target coverage (`testing.md`)
+- [ ] No race conditions on shared values (`data-layer.md` §5)
+- [ ] Tokens verified, not decoded; tenant and user from the credential; queries scoped by both (`security.md` §2)
+- [ ] Money: provider is the source of truth; each payment applied once; balances changed only conditionally or relatively (`payments-billing.md`)
+- [ ] Webhooks: raw-body signature, constant-time compare, event-ID dedupe (`security.md` §8)
+- [ ] Server-side fetches of user-supplied URLs are allowlisted or IP-checked (`security.md` §9)
+- [ ] No auth bypass reachable on a deployed server (`security.md` §4)
+- [ ] Model calls: safety on, all inputs and outputs moderated, per-user limits (`ai-features.md`)
+- [ ] Deleting a record deletes its stored files (`security.md` §6)
+- [ ] Diff is minimal and scoped to the request; no refactor mixed with a behavior change
 
-**Single responsibility.** Each function/class has one reason to change — flag a route
-handler that validates, computes, and persists in one block.
+## 2 · Smells to flag
 
-**Dependency injection.** A service that instantiates its own DB client is tightly coupled
-and hard to test; it should receive dependencies through its constructor.
+- A route handler that validates, computes and persists in one block: split it.
+- A service that builds its own DB client: inject it.
+- Nested `if`s hiding the error path: use guard clauses.
+- Magic numbers, or a function past about 200 lines: name the constant, split the function.
+- Hardcoded URLs or config: move them to the config module.
 
-**Fail fast.** Nested `if`s hiding the error path should become guard clauses.
+## 3 · Request changes or approve with comments
 
-**Meaningful errors.** `throw new Error('Failed')` gives a reviewer and an on-call engineer
-nothing — it should carry the relevant ID and the underlying cause.
+**Request changes** when the diff has:
+- a security issue: hardcoded secret, missing auth or ownership check, injection, unverified token, tenant taken from the request, SSRF, auth bypass
+- a money issue: a payment or credit that can apply twice, an amount or plan from the client, a check-then-act on a balance
+- a logic error: wrong calculation, race condition, null dereference
+- missing tests on a critical path, or a performance problem (N+1, unbounded load, missing index)
+- a violation of a standard already established in the codebase
+- naming or structure unclear enough to hurt maintainability
 
-## 3 · Anti-patterns to flag
+**Approve with comments** for: style a formatter would fix, a non-blocking refactor idea, a nice-to-have optimization, or a clarifying comment on code that is already correct.
 
-| Anti-pattern | Issue | Fix |
-|---|---|---|
-| Silent error swallowing | `try { ... } catch (e) {}` | log and re-throw or handle explicitly |
-| Mixing async patterns | callbacks + Promises + async/await | use async/await consistently |
-| Hardcoded config | `const url = 'http://...'` | environment variable via config module |
-| Unbounded queries | `User.find()` with no limit | add pagination or a limit |
-| Missing null checks | `user.email` when `user` might be null | check before use |
-| Magic numbers | `if (x > 100)` | extract to a named constant |
-| God functions | 200+ line handler | split into smaller functions |
-| Tight coupling | service instantiates its own dependencies | inject dependencies |
-| No error context | `throw new Error('Failed')` | include relevant IDs and state |
-| Leftover debug code | `console.log`, `debugger` | remove before merge |
+Every request-changes comment names the specific risk it blocks on. Give the author an
+ordered list: what must change, then what's optional.
 
-## 4 · When to request changes
+## 4 · Reviewing a whole codebase
 
-- Security issue: hardcoded secret, missing auth check, injection risk, unverified identity
-  token, tenant taken from the request, SSRF, auth bypass flag
-- Money issue: a payment or credit that can apply twice, a plan or amount trusted from the
-  client, a check-then-act on a balance
-- Logic error: wrong calculation, race condition, null dereference
-- Test coverage missing for a critical path
-- Performance issue: N+1 query, unbounded load, missing index
-- Violates a project standard already established elsewhere in the codebase
-- Naming or structure unclear enough to impact maintainability
+Start by confirming **which branch is deployed**, and compare it with the default branch.
+Reviewing a branch nobody runs wastes the review. Record the commit reviewed. Read in risk
+order: auth and tenant scoping, money paths, webhooks, outbound requests, file storage and
+personal data, then the rest. Give each finding an ID, a severity, the branches it applies
+to, `file:line` evidence and a fix, so it can be tracked and re-checked.
 
-## 5 · When to approve with comments
+## 5 · Tone
 
-- Minor style inconsistency that auto-formatting would fix
-- A suggestion for a future refactor that isn't blocking
-- A nice-to-have optimization that isn't critical
-- A clarifying comment would help, but the code is correct as written
+Explain *why* a change is needed, not only what. Offer suggestions, not demands. Call out
+good patterns, not just problems. Keep feedback focused: a long list of nits buries the one
+blocking issue.
 
-## 6 · Reviewing a whole codebase
-
-A full review (not a diff) starts by confirming **which branch is deployed** and comparing it
-with the default branch — reviewing a branch nobody runs wastes the review. Record the commit
-reviewed. Then read in risk order: authentication and tenant scoping, money paths, webhooks,
-outbound requests, file storage and personal data, then the rest. Give each finding an ID,
-a severity, the branches it applies to, `file:line` evidence and a fix, so it can be tracked
-and re-checked.
-
-## 7 · Tone
-
-Be respectful and assume good intent. Explain *why* a change is needed, not just *what* to
-change. Offer suggestions, not demands. Call out good patterns, not only problems. Keep
-feedback focused and actionable — a long list of nits buries the one blocking issue.
-
-## 8 · Done when
+## 6 · Done when
 
 - Every checklist item in §1 has been checked against the diff, not assumed
-- Every request-changes comment names the specific risk (security, correctness, coverage,
-  performance) it's blocking on
-- The review leaves the author with a clear, ordered list of what must change vs. what's
-  optional
+- The author gets a clear, ordered list of what must change versus what is optional
